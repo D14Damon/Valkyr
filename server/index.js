@@ -4,7 +4,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 import express from 'express';
 
@@ -613,6 +613,11 @@ app.use((error, _request, response, _next) => {
 });
 
 await initializeDatabase();
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`VALKYR API listening on port ${PORT}`);
-});
+
+export default app;
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`VALKYR API listening on port ${PORT}`);
+  });
+}
