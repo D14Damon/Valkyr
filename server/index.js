@@ -28,29 +28,44 @@ const DEFAULT_CLAN_SETTINGS = {
   announcement: '',
 };
 
-const tursoUrl = process.env.TURSO_DATABASE_URL;
-const tursoAuthToken = process.env.TURSO_AUTH_TOKEN;
+function readServerValue(name) {
+  const value = process.env[name]?.trim();
+  if (!value) return '';
+  const firstCharacter = value[0];
+  const lastCharacter = value.at(-1);
+  if ((firstCharacter === '"' || firstCharacter === "'") && lastCharacter === firstCharacter) {
+    return value.slice(1, -1).trim();
+  }
+  return value;
+}
+
+const tursoUrl = readServerValue('TURSO_DATABASE_URL');
+const tursoAuthToken = readServerValue('TURSO_AUTH_TOKEN');
 initializeApp({ projectId: PROJECT_ID });
 const firebaseAuth = getAuth();
-const database = tursoUrl && tursoAuthToken
-  ? createClient({ url: tursoUrl, authToken: tursoAuthToken })
-  : null;
+let database = null;
+let databaseStartupError = null;
+if (!tursoUrl || !tursoAuthToken) {
+  databaseStartupError = 'Turso is not configured. Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN to the Vercel project environment variables, then redeploy.';
+} else {
+  try {
+    database = createClient({ url: tursoUrl, authToken: tursoAuthToken });
+  } catch (error) {
+    databaseStartupError = 'Turso configuration is invalid. Check that TURSO_DATABASE_URL is a valid libsql:// URL.';
+    console.error('Failed to create Turso client:', error);
+  }
+}
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '25mb' }));
 
-let databaseStartupFailed = false;
 app.use('/api', (_request, response, next) => {
-  if (!database) {
-    response.status(503).json({
-      error: 'Turso is not configured. Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN to the Vercel project environment variables, then redeploy.',
-    });
+  if (databaseStartupError) {
+    response.status(503).json({ error: databaseStartupError });
     return;
   }
-  if (databaseStartupFailed) {
-    response.status(503).json({
-      error: 'Turso is unavailable. Check the Vercel function logs and Turso credentials, then redeploy.',
-    });
+  if (!database) {
+    response.status(503).json({ error: 'Turso is unavailable. Check the Vercel function logs and Turso credentials, then redeploy.' });
     return;
   }
   next();
@@ -631,7 +646,7 @@ if (database) {
   try {
     await initializeDatabase();
   } catch (error) {
-    databaseStartupFailed = true;
+    databaseStartupError = 'Turso could not initialize. Check the Vercel function logs and verify the database URL and auth token.';
     console.error('Failed to initialize Turso schema:', error);
   }
 }
