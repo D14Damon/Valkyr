@@ -20,6 +20,7 @@ import { testConnection, auth, onAuthStateChanged, signOut } from './firebase';
 
 import { Header } from './components/Header';
 import { HeroBanner } from './components/HeroBanner';
+import { RealisticLavaBackground } from './components/RealisticLavaBackground';
 import { RosterControls } from './components/RosterControls';
 import { MemberCard } from './components/MemberCard';
 import { MemberModal } from './components/MemberModal';
@@ -220,56 +221,59 @@ export default function App() {
   }, [filteredAndSortedMembers]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 p-3.5 px-4 rounded-xl bg-zinc-900 border border-purple-500/50 shadow-2xl shadow-purple-950/40 text-xs font-semibold text-white flex items-center gap-2 animate-bounce">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <div className="app-shell min-h-screen text-zinc-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white">
+      <RealisticLavaBackground />
 
-      {/* Official Header */}
-      <Header
-        settings={settings}
-        isAdmin={isAdmin}
-        onOpenLegitimacyChecker={() => setIsLegitimacyCheckerOpen(true)}
-        onOpenAddMember={() => {
-          setEditMember(null);
-          setIsEditModalOpen(true);
-        }}
-        onOpenAdminSettings={() => setIsAdminSettingsOpen(true)}
-        onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
-        memberCount={members.length}
-      />
-
-      {/* Hero Banner with VALKYR Emblem */}
-      <HeroBanner
-        settings={settings}
-        memberCount={members.length}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onOpenLegitimacyChecker={() => setIsLegitimacyCheckerOpen(true)}
-      />
-
-      {/* Main Roster Container */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {/* Roster Controls: Only show when there are members */}
-        {members.length > 0 && (
-          <RosterControls
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            selectedDepartment={selectedDepartment}
-            onDepartmentChange={setSelectedDepartment}
-            departments={departmentCounts}
-            sortOption={sortOption}
-            onSortChange={setSortOption}
-            totalFiltered={filteredAndSortedMembers.length}
-          />
+      <div className="app-content px-0">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 p-3.5 px-4 rounded-xl bg-zinc-900/80 border border-purple-500/50 shadow-2xl shadow-purple-950/40 text-xs font-semibold text-white flex items-center gap-2 animate-bounce backdrop-blur-xl">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>{toastMessage}</span>
+          </div>
         )}
 
-        {/* Members Content Display */}
-        <div className={members.length > 0 ? 'mt-8' : ''}>
+        {/* Official Header */}
+        <Header
+          settings={settings}
+          isAdmin={isAdmin}
+          onOpenLegitimacyChecker={() => setIsLegitimacyCheckerOpen(true)}
+          onOpenAddMember={() => {
+            setEditMember(null);
+            setIsEditModalOpen(true);
+          }}
+          onOpenAdminSettings={() => setIsAdminSettingsOpen(true)}
+          onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
+          memberCount={members.length}
+        />
+
+        {/* Hero Banner with VALKYR Emblem */}
+        <HeroBanner
+          settings={settings}
+          memberCount={members.length}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onOpenLegitimacyChecker={() => setIsLegitimacyCheckerOpen(true)}
+        />
+
+        {/* Main Roster Container */}
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+          {/* Roster Controls: Only show when there are members */}
+          {members.length > 0 && (
+            <RosterControls
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              selectedDepartment={selectedDepartment}
+              onDepartmentChange={setSelectedDepartment}
+              departments={departmentCounts}
+              sortOption={sortOption}
+              onSortChange={setSortOption}
+              totalFiltered={filteredAndSortedMembers.length}
+            />
+          )}
+
+          {/* Members Content Display */}
+          <div className={members.length > 0 ? 'mt-8' : ''}>
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center text-zinc-500 space-y-3">
               <RefreshCw className="w-8 h-8 text-purple-500 animate-spin" />
@@ -457,6 +461,7 @@ export default function App() {
         onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
         isAdmin={isAdmin}
       />
+      </div>
     </div>
   );
 }

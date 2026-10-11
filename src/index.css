@@ -1,9 +1,224 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: dark;
+  --bg-base: #04070d;
+  --bg-deep: #0d111b;
+  --panel: rgba(8, 10, 16, 1);
+  --panel-soft: rgba(12, 15, 24, 0.98);
+  --panel-border: rgba(255, 255, 255, 0.12);
+  --text: #f3f6ff;
+  --muted: #9aa8bd;
+  --purple: #8b5cf6;
+  --purple-soft: rgba(139, 92, 246, 0.34);
+  --orange: #ff7b54;
+  --red: #ff5d5d;
+  --gold: #ffd166;
+}
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-zinc-950 text-zinc-100 antialiased overflow-x-hidden;
+    @apply antialiased overflow-x-hidden text-zinc-100;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top, rgba(168, 85, 247, 0.2), transparent 35%),
+      radial-gradient(circle at bottom, rgba(255, 125, 78, 0.18), transparent 40%),
+      linear-gradient(180deg, #05070d 0%, #0a0d14 35%, #05070d 100%);
+    color: var(--text);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  #root {
+    min-height: 100vh;
+    width: 100%;
+    position: relative;
+    z-index: 0;
+  }
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.18) 0.5px, transparent 0.7px);
+  background-size: 12px 12px;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+}
+
+.app-content {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(3, 5, 10, 0.82), rgba(2, 4, 8, 0.96));
+  backdrop-filter: none;
+}
+
+.lava-scene {
+  position: fixed;
+  inset: -18% -10% -12% -10%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.95;
+  filter: saturate(1.3) contrast(1.15);
+  transform: perspective(1200px) rotateX(4deg);
+}
+
+.lava-scene::before,
+.lava-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 140, 70, 0.38), transparent 28%),
+    radial-gradient(circle at 40% 35%, rgba(255, 90, 60, 0.32), transparent 30%),
+    radial-gradient(circle at 55% 46%, rgba(255, 170, 80, 0.24), transparent 33%),
+    radial-gradient(circle at 70% 30%, rgba(248, 110, 45, 0.26), transparent 23%);
+  animation: lavaPulse 11s ease-in-out infinite alternate;
+}
+
+.lava-scene::after {
+  transform: scale(1.25) translateY(6%) rotate(-8deg);
+  opacity: 0.72;
+  animation-duration: 14s;
+}
+
+.lava-orb {
+  position: absolute;
+  border-radius: 42% 58% 58% 42% / 34% 46% 54% 66%;
+  background: linear-gradient(135deg, rgba(255, 183, 87, 0.95), rgba(255, 94, 56, 0.9) 40%, rgba(116, 37, 11, 0.96) 100%);
+  box-shadow:
+    inset -18px -12px 40px rgba(57, 18, 5, 0.75),
+    inset 16px 10px 40px rgba(255, 220, 151, 0.38),
+    0 0 45px rgba(255, 117, 58, 0.18);
+  opacity: 0.78;
+  filter: blur(10px);
+}
+
+.orb-one {
+  width: 52vw;
+  height: 40vw;
+  left: -10%;
+  top: 10%;
+  animation: lavaDrift 16s ease-in-out infinite alternate;
+}
+
+.orb-two {
+  width: 46vw;
+  height: 34vw;
+  right: -8%;
+  top: 20%;
+  border-radius: 52% 48% 62% 38% / 44% 48% 52% 56%;
+  animation: lavaDrift 18s ease-in-out infinite alternate-reverse;
+}
+
+.orb-three {
+  width: 60vw;
+  height: 32vw;
+  left: 20%;
+  bottom: -6%;
+  border-radius: 50% 50% 46% 54% / 58% 52% 48% 42%;
+  animation: lavaDrift 20s ease-in-out infinite alternate;
+}
+
+.hero-shell {
+  position: relative;
+  background: linear-gradient(135deg, rgba(9, 11, 17, 0.96), rgba(17, 13, 23, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 25px 80px rgba(24, 10, 34, 0.42);
+}
+
+.hero-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(168, 85, 247, 0.12), rgba(255, 128, 80, 0.06), rgba(255, 255, 255, 0));
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 95%);
+  opacity: 0.55;
+}
+
+.hero-glow {
+  position: absolute;
+  width: 32rem;
+  height: 32rem;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.hero-glow-left {
+  left: -8rem;
+  top: -10rem;
+  background: rgba(168, 85, 247, 0.45);
+}
+
+.hero-glow-right {
+  right: -8rem;
+  bottom: -12rem;
+  background: rgba(255, 120, 80, 0.34);
+}
+
+@media (min-width: 1024px) {
+  #root {
+    zoom: 0.8;
+  }
+
+  .app-content {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 1023px) {
+  #root {
+    zoom: 1;
+  }
+}
+
+@keyframes lavaDrift {
+  0% {
+    transform: translate3d(-4%, 2%, 0) scale(1.02) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(4%, -5%, 0) scale(1.08) rotate(10deg);
+  }
+  100% {
+    transform: translate3d(-2%, 5%, 0) scale(1.12) rotate(-9deg);
+  }
+}
+
+@keyframes lavaPulse {
+  0% {
+    opacity: 0.42;
+    transform: scale(1.04) rotate(0deg);
+  }
+  50% {
+    opacity: 0.78;
+    transform: scale(1.12) rotate(3deg);
+  }
+  100% {
+    opacity: 0.64;
+    transform: scale(1.18) rotate(-4deg);
   }
 }
 
@@ -22,21 +237,20 @@
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Custom cyber scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: rgba(10, 10, 16, 0.9);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.7), rgba(255, 120, 80, 0.7));
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #ef4444;
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.9), rgba(255, 120, 80, 0.85));
 }
