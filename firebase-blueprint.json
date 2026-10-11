@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Clan Member",
+      "description": "An official member of the clan/esports organization with profile, verified badge, and roles.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "ign": { "type": "string", "maxLength": 100 },
+        "clanTag": { "type": "string", "maxLength": 20 },
+        "department": { "type": "string", "maxLength": 50 },
+        "role": { "type": "string", "maxLength": 100 },
+        "photoBase64": { "type": "string", "maxLength": 800000 },
+        "status": { "type": "string", "enum": ["Active", "Reserve", "Alumni", "Probationary"] },
+        "verified": { "type": "boolean" },
+        "verificationCode": { "type": "string", "maxLength": 50 },
+        "game": { "type": "string", "maxLength": 50 },
+        "joinDate": { "type": "string", "maxLength": 50 },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "socials": {
+          "type": "object",
+          "properties": {
+            "twitter": { "type": "string", "maxLength": 200 },
+            "facebook": { "type": "string", "maxLength": 200 },
+            "tiktok": { "type": "string", "maxLength": 200 },
+            "instagram": { "type": "string", "maxLength": 200 },
+            "youtube": { "type": "string", "maxLength": 200 },
+            "discord": { "type": "string", "maxLength": 100 }
+          }
+        },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["name", "ign", "department", "role", "status", "verified"]
+    },
+    "ClanSettings": {
+      "title": "Clan Organization Settings",
+      "description": "General clan branding, announcement, and metadata.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "established": { "type": "string", "maxLength": 50 },
+        "region": { "type": "string", "maxLength": 100 },
+        "logoBase64": { "type": "string", "maxLength": 800000 },
+        "bannerBase64": { "type": "string", "maxLength": 800000 },
+        "discordUrl": { "type": "string", "maxLength": 200 },
+        "facebookUrl": { "type": "string", "maxLength": 200 },
+        "tiktokUrl": { "type": "string", "maxLength": 200 },
+        "youtubeUrl": { "type": "string", "maxLength": 200 },
+        "announcement": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "description"]
+    },
+    "Admin": {
+      "title": "Admin Record",
+      "description": "Authorized administrators capable of editing members and clan settings.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "maxLength": 50 },
+        "addedAt": { "type": "string" }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "Clan members collection readable by public, writable by authenticated admins."
+    },
+    "/clan_settings/{settingsId}": {
+      "schema": "ClanSettings",
+      "description": "Clan details and branding readable by public, writable by authenticated admins."
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Admin collection determining management privileges."
+    }
+  }
+}

@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'kyledesillarico@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidMember(data) {
+      return data.name is string && data.name.size() <= 100
+        && data.ign is string && data.ign.size() <= 100
+        && data.department is string && data.department.size() <= 50
+        && data.role is string && data.role.size() <= 100
+        && data.status in ['Active', 'Reserve', 'Alumni', 'Probationary']
+        && data.verified is bool;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Clan Members Collection: Public can view directory, Admins can mutate
+    match /members/{memberId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(memberId) && isValidMember(request.resource.data);
+      allow update: if isAdmin() && isValidId(memberId) && isValidMember(request.resource.data);
+      allow delete: if isAdmin() && isValidId(memberId);
+    }
+
+    // Clan Settings / Profile details
+    match /clan_settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(settingsId);
+    }
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if isBootstrappedAdmin() && isValidId(adminId);
+    }
+
+    // Connection testing doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}
