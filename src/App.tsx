@@ -12,7 +12,13 @@ import {
   deleteMember,
   getClanSettings,
 } from './services/memberService';
-import { testConnection, auth, onAuthStateChanged, signOut } from './firebase';
+import {
+  testConnection,
+  auth,
+  isAuthorizedAdmin,
+  onAuthStateChanged,
+  signOut,
+} from './firebase';
 
 import { Header } from './components/Header';
 import { RealisticLavaBackground } from './components/RealisticLavaBackground';
@@ -79,10 +85,30 @@ export default function App() {
   // 2. Auth State Listener
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAdmin(true);
-        setAdminEmail(user.email || undefined);
-      }
+      setIsAdmin(false);
+      setAdminEmail(undefined);
+      if (!user) return;
+
+      void isAuthorizedAdmin(user)
+        .then((authorized) => {
+          if (auth.currentUser?.uid !== user.uid) return;
+          if (authorized) {
+            setIsAdmin(true);
+            setAdminEmail(user.email || undefined);
+          } else {
+            void signOut(auth).catch((error: unknown) => {
+              console.error('Failed to sign out unauthorized account:', error);
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to verify admin authorization:', error);
+          if (auth.currentUser?.uid === user.uid) {
+            void signOut(auth).catch((signOutError: unknown) => {
+              console.error('Failed to sign out unauthorized account:', signOutError);
+            });
+          }
+        });
     });
     return () => unsubAuth();
   }, []);
@@ -310,7 +336,7 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                     {group.members.map((member) => (
                       <MemberCard
                         key={member.id}
@@ -330,7 +356,7 @@ export default function App() {
             </div>
           ) : (
             /* Default All Members Grid View */
-            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {filteredAndSortedMembers.map((member) => (
                 <MemberCard
                   key={member.id}

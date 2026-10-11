@@ -3,12 +3,16 @@ import {
   X,
   Lock,
   LogIn,
-  KeyRound,
-  Check,
   AlertCircle,
   Shield,
 } from 'lucide-react';
-import { signInWithPopup, googleProvider, auth } from '../firebase';
+import { FirebaseError } from 'firebase/app';
+import {
+  auth,
+  isAuthorizedAdmin,
+  signInWithEmailAndPassword,
+  signOut,
+} from '../firebase';
 
 interface Props {
   isOpen: boolean;
@@ -21,49 +25,51 @@ export function AdminAuthModal({
   onClose,
   onAdminAuthenticated,
 }: Props) {
-  const [passcode, setPasscode] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleGoogleSignIn = async () => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setIsSigningIn(true);
     setErrorMessage(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const email = result.user.email || 'kyledesillarico@gmail.com';
-      onAdminAuthenticated(email);
+      const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const authorized = await isAuthorizedAdmin(result.user);
+      if (!authorized) {
+        await signOut(auth);
+        setErrorMessage('This account is not registered as a clan admin.');
+        return;
+      }
+
+      onAdminAuthenticated(result.user.email || email.trim());
       onClose();
     } catch (err) {
-      console.error('Google Sign In error:', err);
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : 'Google sign-in popup failed or was blocked. You can use the Clan Admin Passcode below.'
-      );
+      console.error('Admin sign-in error:', err);
+      if (err instanceof FirebaseError) {
+        switch (err.code) {
+          case 'auth/invalid-credential':
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+            setErrorMessage('Incorrect email or password.');
+            break;
+          case 'auth/invalid-email':
+            setErrorMessage('Enter a valid email address.');
+            break;
+          case 'auth/too-many-requests':
+            setErrorMessage('Too many attempts. Please wait and try again.');
+            break;
+          default:
+            setErrorMessage(err.message);
+        }
+      } else {
+        setErrorMessage(err instanceof Error ? err.message : 'Failed to sign in.');
+      }
     } finally {
       setIsSigningIn(false);
-    }
-  };
-
-  const handlePasscodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    const code = passcode.trim().toLowerCase();
-    // Default master codes for owner convenience
-    if (
-      code === 'tyrant2026' ||
-      code === 'tyrant' ||
-      code === 'admin' ||
-      code === 'kyle' ||
-      code.includes('kyledesillarico')
-    ) {
-      onAdminAuthenticated('kyledesillarico@gmail.com');
-      onClose();
-    } else {
-      setErrorMessage('Invalid admin key. (Hint: tyrant2026)');
     }
   };
 
@@ -97,72 +103,51 @@ export function AdminAuthModal({
           </div>
         )}
 
-        <div className="mt-5 space-y-4">
-          {/* Google Sign In via Firebase Auth */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={isSigningIn}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-bold text-sm shadow-md transition disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>{isSigningIn ? 'Connecting...' : 'Sign in with Google Account'}</span>
-          </button>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-zinc-800 w-full" />
-            <span className="bg-zinc-950 px-3 text-[11px] text-zinc-500 uppercase font-mono tracking-wider">
-              Or Master Access Key
-            </span>
+        <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+          <div>
+            <label htmlFor="admin-email" className="mb-1 block text-xs font-semibold text-zinc-400">
+              Admin email
+            </label>
+            <input
+              id="admin-email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
+              placeholder="admin@example.com"
+            />
           </div>
 
-          {/* Quick passcode unlock */}
-          <form onSubmit={handlePasscodeSubmit} className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1">
-                Enter Clan Admin Passcode
-              </label>
-              <div className="relative">
-                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="password"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Master passcode (tyrant2026)"
-                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
+          <div>
+            <label htmlFor="admin-password" className="mb-1 block text-xs font-semibold text-zinc-400">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
+                placeholder="Enter your password"
+              />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md transition"
-            >
-              Unlock Admin Dashboard
-            </button>
-          </form>
-        </div>
-
-        <p className="mt-5 text-[11px] text-zinc-500 text-center">
-          Default Owner: <span className="text-zinc-400 font-mono">kyledesillarico@gmail.com</span>
-        </p>
+          <button
+            type="submit"
+            disabled={isSigningIn}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-red-500 disabled:cursor-wait disabled:opacity-50"
+          >
+            <LogIn className="h-4 w-4" />
+            {isSigningIn ? 'Signing in...' : 'Sign in to Admin'}
+          </button>
+        </form>
       </div>
     </div>
   );
