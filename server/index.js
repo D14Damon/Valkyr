@@ -1,9 +1,8 @@
 import { createClient } from '@libsql/client';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import dotenv from 'dotenv';
 import express from 'express';
 
@@ -13,9 +12,7 @@ dotenv.config();
 const PORT = Number(process.env.PORT || 3010);
 const PROJECT_ID = 'valkyrdirectory';
 const FIREBASE_ISSUER = `https://securetoken.google.com/${PROJECT_ID}`;
-const FIREBASE_JWKS = createRemoteJWKSet(
-  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
-);
+const FIREBASE_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const BOOTSTRAPPED_ADMIN_EMAIL = 'kyledesillarico@gmail.com';
 const VALID_ROLES = new Set(['owner', 'roster_manager', 'moderator']);
 const VALID_STATUSES = new Set(['Active', 'Reserve', 'Alumni', 'Probationary']);
@@ -83,6 +80,94 @@ const route = (handler) => (request, response, next) => {
   Promise.resolve(handler(request, response, next)).catch(next);
 };
 
+let firebaseKeysCache = { keys: [], expiresAt: 0 };
+
+async function getFirebaseSigningKeys(forceRefresh = false) {
+  if (!forceRefresh && firebaseKeysCache.expiresAt > Date.now()) return firebaseKeysCache.keys;
+
+  const response = await fetch(FIREBASE_JWKS_URL, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error(`Firebase signing keys request failed (${response.status}).`);
+  const document = await response.json();
+  if (!Array.isArray(document.keys)) throw new Error('Firebase signing keys response is invalid.');
+
+  const maxAge = response.headers.get('cache-control')?.match(/max-age=(\d+)/i)?.[1];
+  firebaseKeysCache = {
+    keys: document.keys,
+    expiresAt: Date.now() + (maxAge ? Number(maxAge) : 300) * 1000,
+  };
+  return firebaseKeysCache.keys;
+}
+
+function decodeJwtSegment(segment) {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+  try {
+    const value = JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('JWT segment is not an object.');
+    }
+    return value;
+  } catch {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+}
+
+async function verifyFirebaseIdToken(token) {
+  if (token.length > 16384) {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+  const segments = token.split('.');
+  if (segments.length !== 3 || !/^[A-Za-z0-9_-]+$/.test(segments[2])) {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+
+  const header = decodeJwtSegment(segments[0]);
+  const payload = decodeJwtSegment(segments[1]);
+  const now = Date.now() / 1000;
+  if (
+    header.alg !== 'RS256'
+    || typeof header.kid !== 'string'
+    || payload.aud !== PROJECT_ID
+    || payload.iss !== FIREBASE_ISSUER
+    || typeof payload.sub !== 'string'
+    || !payload.sub
+    || payload.sub.length > 128
+    || !Number.isFinite(payload.exp)
+    || payload.exp <= now
+    || !Number.isFinite(payload.iat)
+    || payload.iat > now + 60
+    || !Number.isFinite(payload.auth_time)
+    || payload.auth_time > now + 60
+  ) {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+
+  let keys = await getFirebaseSigningKeys();
+  let signingKey = keys.find((key) => key.kid === header.kid);
+  if (!signingKey) {
+    keys = await getFirebaseSigningKeys(true);
+    signingKey = keys.find((key) => key.kid === header.kid);
+  }
+  if (!signingKey) {
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+
+  try {
+    const publicKey = createPublicKey({ key: signingKey, format: 'jwk' });
+    const signedContent = Buffer.from(`${segments[0]}.${segments[1]}`);
+    const signature = Buffer.from(segments[2], 'base64url');
+    if (!verifySignature('RSA-SHA256', signedContent, publicKey, signature)) {
+      throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+  }
+
+  return { ...payload, uid: payload.sub };
+}
+
 async function initializeDatabase() {
   const statements = [
     `CREATE TABLE IF NOT EXISTS member_profiles (
@@ -132,24 +217,9 @@ async function getRequestUser(request) {
   const match = authorization.match(/^Bearer (.+)$/i);
   if (!match) throw new ApiError(401, 'Sign in with an authorized clan account.');
   try {
-    const { payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
-      algorithms: ['RS256'],
-      audience: PROJECT_ID,
-      issuer: FIREBASE_ISSUER,
-    });
-    if (typeof payload.sub !== 'string' || !payload.sub || payload.sub.length > 128) {
-      throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
-    }
-    return { ...payload, uid: payload.sub };
+    return await verifyFirebaseIdToken(match[1]);
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
-    if (
-      typeof code === 'string'
-      && (code.startsWith('ERR_JWT') || code.startsWith('ERR_JWS') || code === 'ERR_JWKS_NO_MATCHING_KEY')
-    ) {
-      throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
-    }
     console.error('Firebase signing-key verification service failed:', error);
     throw new ApiError(503, 'The admin identity service is temporarily unavailable.');
   }
