@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, getDoc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+import { AdminRole } from './types/clan';
 
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'kyledesillarico@gmail.com';
 
@@ -9,12 +10,16 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-export async function isAuthorizedAdmin(user: User): Promise<boolean> {
-  if (user.email === BOOTSTRAPPED_ADMIN_EMAIL) return true;
+export async function getAdminRole(user: User): Promise<AdminRole | null> {
+  if (user.email === BOOTSTRAPPED_ADMIN_EMAIL) return 'owner';
 
   try {
     const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-    return adminDoc.exists();
+    if (!adminDoc.exists()) return null;
+    const role = adminDoc.data().role;
+    return role === 'owner' || role === 'roster_manager' || role === 'moderator'
+      ? role
+      : null;
   } catch (error) {
     if (
       typeof error === 'object' &&
@@ -22,23 +27,24 @@ export async function isAuthorizedAdmin(user: User): Promise<boolean> {
       'code' in error &&
       error.code === 'permission-denied'
     ) {
-      return false;
+      return null;
     }
     throw error;
   }
 }
 
+export async function isAuthorizedAdmin(user: User): Promise<boolean> {
+  return (await getAdminRole(user)) !== null;
+}
+
 export async function testConnection(): Promise<boolean> {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    const response = await fetch('/api/health');
+    if (!response.ok) throw new Error(`Turso API responded with status ${response.status}.`);
     return true;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client is offline or database initializing.');
-      return false;
-    }
-    // Expected if test doc does not exist yet
-    return true;
+    console.error('Turso API connection test failed:', error);
+    return false;
   }
 }
 

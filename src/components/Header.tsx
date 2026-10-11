@@ -12,6 +12,7 @@ import { ClanSettings } from '../types/clan';
 interface Props {
   settings: ClanSettings;
   isAdmin: boolean;
+  canManageRoster: boolean;
   onOpenAddMember: () => void;
   onOpenAdminSettings: () => void;
   onOpenAdminAuth: () => void;
@@ -21,6 +22,7 @@ interface Props {
 export function Header({
   settings,
   isAdmin,
+  canManageRoster,
   onOpenAddMember,
   onOpenAdminSettings,
   onOpenAdminAuth,
@@ -60,13 +62,15 @@ export function Header({
           <div className="absolute right-4 z-20 hidden items-center gap-3 md:flex">
             {isAdmin ? (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={onOpenAddMember}
-                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_12px_24px_rgba(168,85,247,0.4)] transition hover:brightness-110"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Add Member</span>
-                </button>
+                {canManageRoster && (
+                  <button
+                    onClick={onOpenAddMember}
+                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_12px_24px_rgba(168,85,247,0.4)] transition hover:brightness-110"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Add Member</span>
+                  </button>
+                )}
 
                 <button
                   onClick={onOpenAdminSettings}
@@ -108,16 +112,18 @@ export function Header({
 
           {isAdmin ? (
             <div className="space-y-2 pt-2">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAddMember();
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-2.5 text-xs font-bold text-white"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Add Member</span>
-              </button>
+              {canManageRoster && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAddMember();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-2.5 text-xs font-bold text-white"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Add Member</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);

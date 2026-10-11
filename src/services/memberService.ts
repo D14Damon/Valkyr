@@ -1,152 +1,152 @@
 import {
   collection,
   doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
   getDoc,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ClanMember, ClanSettings } from '../types/clan';
 import { DEFAULT_CLAN_SETTINGS } from '../data/initialMembers';
-import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { apiRequest, authorizedFetch, jsonRequest } from './apiClient';
 
-const MEMBERS_COLLECTION = 'members';
-const SETTINGS_COLLECTION = 'clan_settings';
-const SETTINGS_DOC_ID = 'general';
+const POLL_INTERVAL_MS = 15000;
 
-/**
- * Subscribes to real-time updates for Clan Members strictly from Firestore.
- * Does NOT inject fake/local dummy members.
- */
 export function subscribeToMembers(
   onUpdate: (members: ClanMember[]) => void,
-  onError?: (err: unknown) => void
+  onError?: (error: unknown) => void
 ): () => void {
-  try {
-    const q = query(collection(db, MEMBERS_COLLECTION), orderBy('order', 'asc'));
+  let active = true;
+  let etag: string | null = null;
+  let controller: AbortController | null = null;
+  let refreshing = false;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const members: ClanMember[] = [];
-        snapshot.forEach((docSnap) => {
-          members.push({
-            ...(docSnap.data() as ClanMember),
-            id: docSnap.id,
-          });
-        });
-        onUpdate(members);
-      },
-      (error) => {
-        console.error('Firestore subscription error:', error);
-        onError?.(error);
-        try {
-          handleFirestoreError(error, OperationType.GET, MEMBERS_COLLECTION);
-        } catch {
-          onUpdate([]);
-        }
-      }
-    );
-
-    return unsubscribe;
-  } catch (error) {
-    console.error('Failed to initialize members listener:', error);
+  const refresh = async () => {
+    if (!active || refreshing) return;
+    refreshing = true;
+    controller = new AbortController();
     try {
-      handleFirestoreError(error, OperationType.GET, MEMBERS_COLLECTION);
-    } catch {
-      onUpdate([]);
+      const headers = new Headers();
+      if (etag) headers.set('If-None-Match', etag);
+      const response = await authorizedFetch('/api/members', {
+        headers,
+        signal: controller.signal,
+      });
+      if (response.status === 304) return;
+      if (!response.ok) throw new Error(`Roster request failed (${response.status}).`);
+      etag = response.headers.get('ETag');
+      const members: ClanMember[] = await response.json();
+      if (active) onUpdate(members);
+    } catch (error) {
+      if (active && !(error instanceof DOMException && error.name === 'AbortError')) {
+        console.error('Failed to load Turso roster:', error);
+        onError?.(error);
+      }
+    } finally {
+      refreshing = false;
     }
-    return () => {};
-  }
+  };
+
+  void refresh();
+  const intervalId = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
+  return () => {
+    active = false;
+    window.clearInterval(intervalId);
+    controller?.abort();
+  };
 }
 
-/**
- * Creates or updates a clan member in Firestore with custom Base64 photo and info.
- */
-export async function saveMember(member: ClanMember, adminEmail?: string): Promise<void> {
-  const path = `${MEMBERS_COLLECTION}/${member.id}`;
-  try {
-    const dataToSave = {
-      ...member,
-      clanTag: member.clanTag || 'VALKYR',
-      updatedAt: new Date().toISOString(),
-      updatedBy: adminEmail || 'Admin',
-    };
-    await setDoc(doc(db, MEMBERS_COLLECTION, member.id), dataToSave, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+export async function saveMember(
+  member: ClanMember,
+  _adminEmail?: string,
+  auditAction?: 'imported'
+): Promise<void> {
+  const request = jsonRequest('PUT', member);
+  const headers = new Headers(request.headers);
+  if (auditAction) headers.set('X-Audit-Action', auditAction);
+  await apiRequest<ClanMember>(`/api/members/${encodeURIComponent(member.id)}`, {
+    ...request,
+    headers,
+  });
 }
 
-/**
- * Updates partial clan member fields in Firestore.
- */
 export async function updateMemberInfo(
   memberId: string,
-  partialData: Partial<ClanMember>,
-  adminEmail?: string
+  partialData: Partial<ClanMember>
 ): Promise<void> {
-  const path = `${MEMBERS_COLLECTION}/${memberId}`;
-  try {
-    const dataToSave = {
-      ...partialData,
-      updatedAt: new Date().toISOString(),
-      updatedBy: adminEmail || 'Admin',
-    };
-    await updateDoc(doc(db, MEMBERS_COLLECTION, memberId), dataToSave);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
-  }
+  await apiRequest<ClanMember>(`/api/members/${encodeURIComponent(memberId)}`, jsonRequest('PATCH', partialData));
 }
 
-/**
- * Deletes a clan member from Firestore.
- */
 export async function deleteMember(memberId: string): Promise<void> {
-  const path = `${MEMBERS_COLLECTION}/${memberId}`;
-  try {
-    await deleteDoc(doc(db, MEMBERS_COLLECTION, memberId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
-  }
+  await apiRequest<void>(`/api/members/${encodeURIComponent(memberId)}`, { method: 'DELETE' });
 }
 
-/**
- * Fetches Clan Settings from Firestore.
- */
+export async function setMemberArchived(member: ClanMember, archived: boolean): Promise<void> {
+  await apiRequest<ClanMember>(
+    `/api/members/${encodeURIComponent(member.id)}/archive`,
+    jsonRequest('PATCH', { archived })
+  );
+}
+
 export async function getClanSettings(): Promise<ClanSettings> {
-  const path = `${SETTINGS_COLLECTION}/${SETTINGS_DOC_ID}`;
-  try {
-    const docRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return {
-        ...DEFAULT_CLAN_SETTINGS,
-        ...(snap.data() as ClanSettings),
-      };
-    }
-    return DEFAULT_CLAN_SETTINGS;
-  } catch (error) {
-    console.warn('Error fetching clan settings:', error);
-    return DEFAULT_CLAN_SETTINGS;
-  }
+  const settings = await apiRequest<ClanSettings | null>('/api/clan-settings');
+  return settings ? { ...DEFAULT_CLAN_SETTINGS, ...settings } : DEFAULT_CLAN_SETTINGS;
 }
 
-/**
- * Saves Clan Settings to Firestore.
- */
 export async function saveClanSettings(settings: ClanSettings): Promise<void> {
-  const path = `${SETTINGS_COLLECTION}/${SETTINGS_DOC_ID}`;
-  try {
-    await setDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID), {
-      ...settings,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+  await apiRequest<ClanSettings>('/api/clan-settings', jsonRequest('PUT', settings));
+}
+
+export interface MigrationProgress {
+  membersCopied: number;
+  totalMembers: number;
+  auditEntriesCopied: number;
+  totalAuditEntries: number;
+  settingsCopied: boolean;
+}
+
+export async function migrateFirestoreProfiles(
+  onProgress: (progress: MigrationProgress) => void
+): Promise<MigrationProgress> {
+  const [memberSnapshot, settingsSnapshot, auditSnapshot] = await Promise.all([
+    getDocs(collection(db, 'members')),
+    getDoc(doc(db, 'clan_settings', 'general')),
+    getDocs(collection(db, 'member_audit_log')),
+  ]);
+  const totalMembers = memberSnapshot.size;
+  const totalAuditEntries = auditSnapshot.size;
+  let membersCopied = 0;
+  let auditEntriesCopied = 0;
+
+  for (const memberDoc of memberSnapshot.docs) {
+    const member = { ...memberDoc.data(), id: memberDoc.id } as ClanMember;
+    const result = await apiRequest<{ copied: boolean }>(
+      `/api/admin/migrate/member/${encodeURIComponent(member.id)}`,
+      jsonRequest('POST', member)
+    );
+    if (result.copied) membersCopied += 1;
+    onProgress({ membersCopied, totalMembers, auditEntriesCopied, totalAuditEntries, settingsCopied: false });
   }
+
+  for (const auditDoc of auditSnapshot.docs) {
+    const entry = { ...auditDoc.data(), id: auditDoc.id };
+    const result = await apiRequest<{ copied: boolean }>(
+      `/api/admin/migrate/audit/${encodeURIComponent(auditDoc.id)}`,
+      jsonRequest('POST', entry)
+    );
+    if (result.copied) auditEntriesCopied += 1;
+    onProgress({ membersCopied, totalMembers, auditEntriesCopied, totalAuditEntries, settingsCopied: false });
+  }
+
+  let settingsCopied = false;
+  if (settingsSnapshot.exists()) {
+    const result = await apiRequest<{ copied: boolean }>(
+      '/api/admin/migrate/settings',
+      jsonRequest('POST', settingsSnapshot.data())
+    );
+    settingsCopied = result.copied;
+  }
+
+  const result = { membersCopied, totalMembers, auditEntriesCopied, totalAuditEntries, settingsCopied };
+  onProgress(result);
+  return result;
 }

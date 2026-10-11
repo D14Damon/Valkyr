@@ -10,24 +10,55 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == 'kyledesillarico@gmail.com';
     }
 
-    function isAdmin() {
-      return isBootstrappedAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    function hasAdminRole() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+          in ['owner', 'roster_manager', 'moderator'];
+    }
+
+    function canManageRoster() {
+      return isBootstrappedAdmin()
+        || (hasAdminRole() && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+          in ['owner', 'roster_manager']);
+    }
+
+    function canManageAdmins() {
+      return isBootstrappedAdmin()
+        || (hasAdminRole() && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'owner');
+    }
+
+    function canModerate() {
+      return isBootstrappedAdmin()
+        || (hasAdminRole() && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+          in ['owner', 'roster_manager', 'moderator']);
     }
 
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function isValidMember(data) {
-      return data.name is string && data.name.size() <= 100
-        && data.ign is string && data.ign.size() <= 100
-        && data.department is string && data.department.size() <= 50
-        && data.role is string && data.role.size() <= 100
-        && data.status in ['Active', 'Reserve', 'Alumni', 'Probationary']
-        && data.verified is bool
-        && (!('photoBase64' in data) || (
-          data.photoBase64 is string && data.photoBase64.size() <= 716800
-        ));
+    function validPublicApplication(data) {
+      return data.keys().hasOnly(['name', 'ign', 'game', 'role', 'contact', 'message', 'status', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.ign is string && data.ign.size() > 0 && data.ign.size() <= 100
+        && data.game is string && data.game.size() <= 100
+        && data.role is string && data.role.size() > 0 && data.role.size() <= 100
+        && data.contact is string && data.contact.size() > 0 && data.contact.size() <= 200
+        && data.message is string && data.message.size() <= 2000
+        && data.status == 'pending'
+        && data.createdAt is string && data.createdAt.size() <= 40;
+    }
+
+    function validPublicReport(data) {
+      return data.keys().hasOnly(['reportedAccount', 'platform', 'evidenceUrl', 'details', 'contact', 'status', 'createdAt'])
+        && data.reportedAccount is string && data.reportedAccount.size() > 0 && data.reportedAccount.size() <= 150
+        && data.platform is string && data.platform.size() > 0 && data.platform.size() <= 80
+        && data.evidenceUrl is string && data.evidenceUrl.size() <= 500
+        && data.details is string && data.details.size() > 0 && data.details.size() <= 2000
+        && data.contact is string && data.contact.size() <= 200
+        && data.status == 'open'
+        && data.createdAt is string && data.createdAt.size() <= 40;
     }
 
     // Default deny
@@ -35,24 +66,60 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Clan Members Collection: Public can view directory, Admins can mutate
+    // Legacy profile collections stay readable only for the one-time Turso migration.
     match /members/{memberId} {
-      allow read: if true;
-      allow create: if isAdmin() && isValidId(memberId) && isValidMember(request.resource.data);
-      allow update: if isAdmin() && isValidId(memberId) && isValidMember(request.resource.data);
-      allow delete: if isAdmin() && isValidId(memberId);
+      allow read: if canManageRoster();
+      allow write: if false;
     }
 
-    // Clan Settings / Profile details
+    // Legacy settings are read for migration; live settings are stored in Turso.
     match /clan_settings/{settingsId} {
-      allow read: if true;
-      allow write: if isAdmin() && isValidId(settingsId);
+      allow read: if canManageRoster();
+      allow write: if false;
     }
 
     // Admins registry
     match /admins/{adminId} {
-      allow read: if isAdmin();
-      allow write: if isBootstrappedAdmin() && isValidId(adminId);
+      allow read: if canManageAdmins() || (isSignedIn() && request.auth.uid == adminId);
+      allow create, update: if canManageAdmins() && isValidId(adminId)
+        && request.resource.data.keys().hasOnly(['email', 'role', 'createdAt'])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.role in ['owner', 'roster_manager', 'moderator']
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40;
+      allow delete: if canManageAdmins() && isValidId(adminId)
+        && adminId != request.auth.uid;
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow create, update, delete: if canModerate();
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if canModerate();
+    }
+
+    match /tournament_results/{resultId} {
+      allow read: if true;
+      allow create, update, delete: if canModerate();
+    }
+
+    match /recruitment_applications/{applicationId} {
+      allow create: if validPublicApplication(request.resource.data);
+      allow read, update, delete: if canModerate();
+    }
+
+    match /impersonation_reports/{reportId} {
+      allow create: if validPublicReport(request.resource.data);
+      allow read, update, delete: if canModerate();
+    }
+
+    match /member_audit_log/{entryId} {
+      allow read: if canManageRoster();
+      allow write: if false;
     }
 
     // Connection testing doc

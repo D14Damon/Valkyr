@@ -1,14 +1,13 @@
 /**
- * Resizes and compresses image files into lightweight, high-definition Base64 data strings.
- * Ensures data stays well below Firestore's 1MB document limit (typically 40KB - 120KB).
+ * Resizes and compresses image files into Base64 data strings for Turso member profiles.
  */
-export const MAX_FIRESTORE_PHOTO_LENGTH = 700 * 1024;
+export const MAX_TURSO_PHOTO_LENGTH = 1400 * 1024;
 
 export async function fileToBase64Optimized(
   file: File,
-  maxWidth = 600,
-  maxHeight = 600,
-  quality = 0.85
+  maxWidth = 900,
+  maxHeight = 900,
+  quality = 0.86
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -48,8 +47,8 @@ export async function fileToBase64Optimized(
         ctx.drawImage(img, 0, 0, width, height);
 
         const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        if (compressedBase64.length > MAX_FIRESTORE_PHOTO_LENGTH) {
-          reject(new Error('The compressed photo is too large for Firestore. Please choose a smaller image.'));
+        if (compressedBase64.length > MAX_TURSO_PHOTO_LENGTH) {
+          reject(new Error('The compressed photo is too large for Turso. Please choose a smaller image.'));
           return;
         }
         resolve(compressedBase64);

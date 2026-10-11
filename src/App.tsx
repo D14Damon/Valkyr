@@ -4,18 +4,20 @@ import {
   Search,
   RefreshCw,
 } from 'lucide-react';
-import { ClanMember, ClanSettings, ViewMode } from './types/clan';
+import { AdminRole, ClanMember, ClanSettings, ViewMode } from './types/clan';
 import { DEFAULT_CLAN_SETTINGS } from './data/initialMembers';
 import {
   subscribeToMembers,
   saveMember,
   deleteMember,
   getClanSettings,
+  migrateFirestoreProfiles,
+  setMemberArchived,
 } from './services/memberService';
 import {
   testConnection,
   auth,
-  isAuthorizedAdmin,
+  getAdminRole,
   onAuthStateChanged,
   signOut,
 } from './firebase';
@@ -29,12 +31,14 @@ import { MemberEditModal } from './components/MemberEditModal';
 import { AdminSettingsModal } from './components/AdminSettingsModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { RosterTableView } from './components/RosterTableView';
+import { CommunityHub } from './components/CommunityHub';
 
 export default function App() {
-  // Pure database state: starts empty, strictly loaded from Firestore
+  // Roster state is loaded from the live Turso API.
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [settings, setSettings] = useState<ClanSettings>(DEFAULT_CLAN_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [rosterError, setRosterError] = useState<string | null>(null);
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -44,6 +48,7 @@ export default function App() {
 
   // Admin state
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [adminEmail, setAdminEmail] = useState<string | undefined>(undefined);
 
   // Modals state
@@ -52,6 +57,7 @@ export default function App() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -61,21 +67,26 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1. Initial Connection & Realtime Member Subscription from Firestore
+  // 1. Initial connection and polling for Turso roster changes
   useEffect(() => {
     testConnection();
 
     // Fetch Clan Settings
-    getClanSettings().then(setSettings).catch(console.warn);
+    getClanSettings().then(setSettings).catch((error: unknown) => {
+      console.error('Failed to load clan settings from Turso:', error);
+      setRosterError(error instanceof Error ? error.message : 'Could not load clan settings.');
+    });
 
-    // Realtime subscription to members collection in Firestore
+    // ETags avoid redownloading unchanged profiles and their Base64 photos.
     const unsubscribe = subscribeToMembers(
       (updatedMembers) => {
         setMembers(updatedMembers);
         setLoading(false);
+        setRosterError(null);
       },
-      () => {
+      (error) => {
         setLoading(false);
+        setRosterError(error instanceof Error ? error.message : 'Could not load the member roster.');
       }
     );
 
@@ -86,14 +97,16 @@ export default function App() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       setIsAdmin(false);
+      setAdminRole(null);
       setAdminEmail(undefined);
       if (!user) return;
 
-      void isAuthorizedAdmin(user)
-        .then((authorized) => {
+      void getAdminRole(user)
+        .then((role) => {
           if (auth.currentUser?.uid !== user.uid) return;
-          if (authorized) {
+          if (role) {
             setIsAdmin(true);
+            setAdminRole(role);
             setAdminEmail(user.email || undefined);
           } else {
             void signOut(auth).catch((error: unknown) => {
@@ -129,11 +142,25 @@ export default function App() {
   const handleSaveMember = async (memberToSave: ClanMember) => {
     try {
       await saveMember(memberToSave, adminEmail);
-      showToast(`Saved ${memberToSave.ign} directly to Firestore!`);
+      showToast(`Saved ${memberToSave.ign} to Turso.`);
     } catch (err) {
       console.error(err);
       showToast(`Error saving member: ${err instanceof Error ? err.message : 'Permission denied'}`);
       throw err;
+    }
+  };
+
+  const handleImportMembers = async (newMembers: ClanMember[]) => {
+    let importedCount = 0;
+    try {
+      for (const member of newMembers) {
+        await saveMember(member, adminEmail, 'imported');
+        importedCount += 1;
+      }
+      showToast(`Imported ${importedCount} members from CSV.`);
+    } catch (error) {
+      console.error('CSV import stopped after a save failure:', error);
+      throw new Error(`Imported ${importedCount} of ${newMembers.length} members before the save failed. ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -153,12 +180,27 @@ export default function App() {
     }
   };
 
+  const handleArchiveMember = async (member: ClanMember) => {
+    try {
+      await setMemberArchived(member, !member.archived);
+      showToast(`${member.ign} ${member.archived ? 'restored to' : 'archived from'} the active roster.`);
+    } catch (error) {
+      console.error(error);
+      showToast(`Error updating member: ${error instanceof Error ? error.message : 'Failed'}`);
+    }
+  };
+
   // Admin Sign Out
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-    } catch {}
+    } catch (error) {
+      console.error('Failed to sign out admin:', error);
+      showToast(`Could not sign out: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return;
+    }
     setIsAdmin(false);
+    setAdminRole(null);
     setAdminEmail(undefined);
     showToast('Signed out of admin mode.');
   };
@@ -166,7 +208,7 @@ export default function App() {
   // Distinct Departments with member counts
   const departmentCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    members.forEach((m) => {
+    members.filter((member) => includeArchived || !member.archived).forEach((m) => {
       if (m.department) {
         counts[m.department] = (counts[m.department] || 0) + 1;
       }
@@ -176,11 +218,11 @@ export default function App() {
       name,
       count,
     }));
-  }, [members]);
+  }, [members, includeArchived]);
 
   // Filter and Sort members
   const filteredAndSortedMembers = useMemo(() => {
-    let result = [...members];
+    let result = members.filter((member) => includeArchived || !member.archived);
 
     // Search query filter
     if (searchQuery.trim()) {
@@ -221,7 +263,7 @@ export default function App() {
     });
 
     return result;
-  }, [members, searchQuery, selectedDepartment, sortOption]);
+  }, [members, searchQuery, selectedDepartment, sortOption, includeArchived]);
 
   // Grouped members for "Department" View Mode
   const groupedByDepartment = useMemo(() => {
@@ -258,6 +300,7 @@ export default function App() {
         <Header
           settings={settings}
           isAdmin={isAdmin}
+          canManageRoster={adminRole === 'owner' || adminRole === 'roster_manager'}
           onOpenAddMember={() => {
             setEditMember(null);
             setIsEditModalOpen(true);
@@ -267,10 +310,16 @@ export default function App() {
           memberCount={members.length}
         />
 
-        {(loading || members.length > 0) && (
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        {(loading || members.length > 0 || rosterError) && (
+        <main id="member-roster" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+          {rosterError && (
+            <div role="alert" className="mb-6 rounded-xl border border-red-500/30 bg-red-950/40 p-4 text-sm text-red-200">
+              The live data service is unavailable: {rosterError}
+            </div>
+          )}
           {/* Roster Controls: Only show when there are members */}
           {members.length > 0 && (
+            <>
             <RosterControls
               viewMode={viewMode}
               onViewModeChange={setViewMode}
@@ -281,6 +330,13 @@ export default function App() {
               onSortChange={setSortOption}
               totalFiltered={filteredAndSortedMembers.length}
             />
+            {adminRole && (
+              <label className="mt-3 inline-flex items-center gap-2 text-xs text-zinc-400">
+                <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} className="accent-purple-500" />
+                Include archived members ({members.filter((member) => member.archived).length})
+              </label>
+            )}
+            </>
           )}
 
           {/* Members Content Display */}
@@ -314,12 +370,13 @@ export default function App() {
             <RosterTableView
               members={filteredAndSortedMembers}
               onSelect={setInspectMember}
-              isAdmin={isAdmin}
+              isAdmin={adminRole === 'owner' || adminRole === 'roster_manager'}
               onEdit={(m) => {
                 setEditMember(m);
                 setIsEditModalOpen(true);
               }}
               onDelete={handleDeleteMember}
+              onArchive={handleArchiveMember}
             />
           ) : viewMode === 'department' ? (
             /* Grouped by Department View */
@@ -342,12 +399,13 @@ export default function App() {
                         key={member.id}
                         member={member}
                         onSelect={setInspectMember}
-                        isAdmin={isAdmin}
+                        isAdmin={adminRole === 'owner' || adminRole === 'roster_manager'}
                         onEdit={(m) => {
                           setEditMember(m);
                           setIsEditModalOpen(true);
                         }}
                         onDelete={handleDeleteMember}
+                        onArchive={handleArchiveMember}
                       />
                     ))}
                   </div>
@@ -362,12 +420,13 @@ export default function App() {
                   key={member.id}
                   member={member}
                   onSelect={setInspectMember}
-                  isAdmin={isAdmin}
+                  isAdmin={adminRole === 'owner' || adminRole === 'roster_manager'}
                   onEdit={(m) => {
                     setEditMember(m);
                     setIsEditModalOpen(true);
                   }}
                   onDelete={handleDeleteMember}
+                  onArchive={handleArchiveMember}
                 />
               ))}
             </div>
@@ -376,11 +435,19 @@ export default function App() {
       </main>
         )}
 
+        <CommunityHub
+          members={members}
+          settings={settings}
+          adminRole={adminRole}
+          adminEmail={adminEmail}
+          onUpdateSettings={setSettings}
+        />
+
       {/* Modals */}
       <MemberModal
         member={inspectMember}
         onClose={() => setInspectMember(null)}
-        isAdmin={isAdmin}
+        isAdmin={adminRole === 'owner' || adminRole === 'roster_manager'}
         onEdit={(m) => {
           setEditMember(m);
           setIsEditModalOpen(true);
@@ -405,10 +472,18 @@ export default function App() {
         onUpdateSettings={setSettings}
         members={members}
         adminEmail={adminEmail}
+        adminRole={adminRole}
+        onImportMembers={handleImportMembers}
+        onMigrateFirestoreProfiles={migrateFirestoreProfiles}
         onSignOut={handleSignOut}
         onRefreshRoster={() => {
-          getClanSettings().then(setSettings);
-          showToast('Data refreshed from Firestore.');
+          void getClanSettings().then((updatedSettings) => {
+            setSettings(updatedSettings);
+            showToast('Clan settings refreshed from Turso.');
+          }).catch((error: unknown) => {
+            console.error('Failed to refresh clan settings:', error);
+            showToast(`Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          });
         }}
       />
 

@@ -113,7 +113,7 @@ export function Footer({
           <p>© {new Date().getFullYear()} {settings.name || 'VALKYR'}. All Rights Reserved.</p>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-zinc-400">Firebase Firestore Real-Time Active</span>
+            <span className="text-zinc-400">Live clan data active</span>
           </div>
         </div>
       </div>

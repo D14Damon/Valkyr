@@ -12,7 +12,7 @@ import { ClanMember, ClanDepartment, MemberStatus } from '../types/clan';
 import {
   fileToBase64Optimized,
   getBase64SizeKb,
-  MAX_FIRESTORE_PHOTO_LENGTH,
+  MAX_TURSO_PHOTO_LENGTH,
 } from '../utils/imageCompressor';
 
 interface Props {
@@ -88,8 +88,7 @@ export function MemberEditModal({
     try {
       setIsProcessingImage(true);
       setErrorMessage(null);
-      // Auto-compress to optimal resolution for Firestore
-      const compressedBase64 = await fileToBase64Optimized(file, 600, 600, 0.82);
+      const compressedBase64 = await fileToBase64Optimized(file, 900, 900, 0.86);
       setPhotoBase64(compressedBase64);
     } catch (err) {
       setErrorMessage(
@@ -111,9 +110,9 @@ export function MemberEditModal({
       photoBase64 &&
       photoBase64 !== '/valkyr-logo.png' &&
       (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photoBase64) ||
-        photoBase64.length > MAX_FIRESTORE_PHOTO_LENGTH)
+        photoBase64.length > MAX_TURSO_PHOTO_LENGTH)
     ) {
-      setErrorMessage('Upload a JPG, PNG, or WebP photo so it can be saved as Base64 in Firestore.');
+      setErrorMessage('Upload a JPG, PNG, or WebP photo so it can be saved as Base64 in Turso.');
       return;
     }
 
@@ -173,7 +172,7 @@ export function MemberEditModal({
                 {isEditing ? `Edit Member: ${member?.ign}` : 'Add Clan Member'}
               </h3>
               <p className="text-xs text-zinc-400">
-                Custom Base64 photo & profile saved to your Firebase database
+                Member profile and photo saved to Turso
               </p>
             </div>
           </div>
@@ -202,7 +201,7 @@ export function MemberEditModal({
                   Member Photo (Base64 String)
                 </label>
                 <p className="text-[11px] text-zinc-400">
-                  Select a photo from your device. It will be compressed and saved as Base64 in Firestore (no Firebase Storage required).
+                  Select a photo from your device. It will be resized to 900px and saved in Turso.
                 </p>
               </div>
               {photoBase64.startsWith('data:') && (

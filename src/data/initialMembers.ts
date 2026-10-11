@@ -11,5 +11,5 @@ export const DEFAULT_CLAN_SETTINGS: ClanSettings = {
   updatedAt: new Date().toISOString(),
 };
 
-// No local dummy data - all data is strictly sourced from live Firestore database
+// No local dummy data - roster data is sourced from the Turso API.
 export const INITIAL_MEMBERS: ClanMember[] = [];

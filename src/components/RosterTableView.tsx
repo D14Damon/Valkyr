@@ -1,4 +1,4 @@
-import { ShieldCheck, Eye, Edit3, Trash2 } from 'lucide-react';
+import { ShieldCheck, Eye, Edit3, Trash2, Archive, RotateCcw } from 'lucide-react';
 import { ClanMember } from '../types/clan';
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
   isAdmin: boolean;
   onEdit: (member: ClanMember) => void;
   onDelete: (memberId: string) => void;
+  onArchive: (member: ClanMember) => void;
 }
 
 export function RosterTableView({
@@ -15,6 +16,7 @@ export function RosterTableView({
   isAdmin,
   onEdit,
   onDelete,
+  onArchive,
 }: Props) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-850 bg-zinc-900/50 shadow-xl">
@@ -55,6 +57,7 @@ export function RosterTableView({
                       </span>
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
+                    {member.archived && <span className="text-[10px] font-bold uppercase text-amber-300">Archived</span>}
                     <span className="text-[10px] font-mono text-purple-400 uppercase">
                       {member.clanTag || 'VALKYR'}
                     </span>
@@ -113,6 +116,13 @@ export function RosterTableView({
                         title="Edit member"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onArchive(member)}
+                        className="rounded-lg bg-zinc-800 p-1.5 text-zinc-300 transition hover:bg-zinc-700 hover:text-white"
+                        title={member.archived ? 'Restore member' : 'Archive member'}
+                      >
+                        {member.archived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
                       </button>
                       <button
                         onClick={() => onDelete(member.id)}
