@@ -2,6 +2,8 @@
  * Resizes and compresses image files into lightweight, high-definition Base64 data strings.
  * Ensures data stays well below Firestore's 1MB document limit (typically 40KB - 120KB).
  */
+export const MAX_FIRESTORE_PHOTO_LENGTH = 700 * 1024;
+
 export async function fileToBase64Optimized(
   file: File,
   maxWidth = 600,
@@ -36,7 +38,7 @@ export async function fileToBase64Optimized(
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve(reader.result as string);
+          reject(new Error('Unable to prepare the selected image.'));
           return;
         }
 
@@ -46,6 +48,10 @@ export async function fileToBase64Optimized(
         ctx.drawImage(img, 0, 0, width, height);
 
         const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        if (compressedBase64.length > MAX_FIRESTORE_PHOTO_LENGTH) {
+          reject(new Error('The compressed photo is too large for Firestore. Please choose a smaller image.'));
+          return;
+        }
         resolve(compressedBase64);
       };
       img.src = reader.result as string;

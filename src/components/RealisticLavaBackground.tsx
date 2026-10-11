@@ -306,17 +306,20 @@ export const RealisticLavaBackground: React.FC = () => {
 
   return createPortal(
     (
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
+      <div
+        className="fixed inset-0 pointer-events-none overflow-hidden select-none"
+        style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}
+      >
         <canvas
           ref={canvasRef}
           className="w-full h-full object-cover opacity-100 contrast-125 brightness-80"
-          style={{ willChange: 'transform' }}
+          style={{ willChange: 'transform', position: 'absolute', inset: 0, zIndex: 0 }}
         />
 
         <canvas
           ref={emberCanvasRef}
           className="absolute inset-0 w-full h-full pointer-events-none opacity-100"
-          style={{ filter: 'brightness(0.9) saturate(1.15)' }}
+          style={{ filter: 'brightness(0.9) saturate(1.15)', position: 'absolute', inset: 0, zIndex: 0 }}
         />
 
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.18),rgba(0,0,0,0.84)_60%,rgba(0,0,0,0.96)_100%)] pointer-events-none" />

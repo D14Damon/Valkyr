@@ -24,7 +24,10 @@ service cloud.firestore {
         && data.department is string && data.department.size() <= 50
         && data.role is string && data.role.size() <= 100
         && data.status in ['Active', 'Reserve', 'Alumni', 'Probationary']
-        && data.verified is bool;
+        && data.verified is bool
+        && (!('photoBase64' in data) || (
+          data.photoBase64 is string && data.photoBase64.size() <= 716800
+        ));
     }
 
     // Default deny

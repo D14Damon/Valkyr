@@ -4,13 +4,13 @@
   color-scheme: dark;
   --bg-base: #04070d;
   --bg-deep: #0d111b;
-  --panel: rgba(8, 10, 16, 1);
-  --panel-soft: rgba(12, 15, 24, 0.98);
-  --panel-border: rgba(255, 255, 255, 0.12);
+  --panel: rgba(10, 12, 18, 0.96);
+  --panel-soft: rgba(13, 16, 24, 0.94);
+  --panel-border: rgba(255, 255, 255, 0.1);
   --text: #f3f6ff;
   --muted: #9aa8bd;
   --purple: #8b5cf6;
-  --purple-soft: rgba(139, 92, 246, 0.34);
+  --purple-soft: rgba(139, 92, 246, 0.22);
   --orange: #ff7b54;
   --red: #ff5d5d;
   --gold: #ffd166;
@@ -25,9 +25,9 @@
     @apply antialiased overflow-x-hidden text-zinc-100;
     min-height: 100vh;
     background:
-      radial-gradient(circle at top, rgba(168, 85, 247, 0.2), transparent 35%),
-      radial-gradient(circle at bottom, rgba(255, 125, 78, 0.18), transparent 40%),
-      linear-gradient(180deg, #05070d 0%, #0a0d14 35%, #05070d 100%);
+      radial-gradient(circle at top, rgba(139, 92, 246, 0.18), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(255, 120, 80, 0.12), transparent 25%),
+      linear-gradient(180deg, #04070d 0%, #090d14 38%, #05070d 100%);
     color: var(--text);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
@@ -36,14 +36,15 @@
     min-height: 100vh;
     width: 100%;
     position: relative;
-    z-index: 0;
+    z-index: 1;
   }
 }
 
 .app-shell {
   position: relative;
-  min-height: 100vh;
+  z-index: 1;
   isolation: isolate;
+  background: transparent;
 }
 
 .noise-overlay {
@@ -59,9 +60,10 @@
 
 .app-content {
   position: relative;
-  z-index: 1;
-  background: linear-gradient(180deg, rgba(3, 5, 10, 0.82), rgba(2, 4, 8, 0.96));
+  z-index: 20;
+  background: transparent;
   backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
 .lava-scene {
@@ -133,8 +135,12 @@
 
 .hero-shell {
   position: relative;
-  background: linear-gradient(135deg, rgba(9, 11, 17, 0.96), rgba(17, 13, 23, 0.92));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 25px 80px rgba(24, 10, 34, 0.42);
+  z-index: 2;
+  background:
+    linear-gradient(135deg, rgba(8, 12, 18, 0.98), rgba(13, 10, 18, 0.96)),
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(255, 120, 80, 0.12), transparent 26%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 30px 90px rgba(0, 0, 0, 0.72);
 }
 
 .hero-shell::before {
@@ -184,8 +190,8 @@
 
   .app-content {
     width: 100%;
-    max-width: 1280px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
   }
 }
 

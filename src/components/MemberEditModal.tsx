@@ -9,7 +9,11 @@ import {
   Shield,
 } from 'lucide-react';
 import { ClanMember, ClanDepartment, MemberStatus } from '../types/clan';
-import { fileToBase64Optimized, getBase64SizeKb } from '../utils/imageCompressor';
+import {
+  fileToBase64Optimized,
+  getBase64SizeKb,
+  MAX_FIRESTORE_PHOTO_LENGTH,
+} from '../utils/imageCompressor';
 
 interface Props {
   isOpen: boolean;
@@ -74,9 +78,10 @@ export function MemberEditModal({
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.currentTarget.value = '';
 
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please select a valid image file (JPG, PNG, WebP).');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setErrorMessage('Please select a JPG, PNG, or WebP image.');
       return;
     }
 
@@ -87,7 +92,9 @@ export function MemberEditModal({
       const compressedBase64 = await fileToBase64Optimized(file, 600, 600, 0.82);
       setPhotoBase64(compressedBase64);
     } catch (err) {
-      setErrorMessage('Failed to process image. Please try a different photo.');
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to process image. Please try a different photo.'
+      );
       console.error(err);
     } finally {
       setIsProcessingImage(false);
@@ -98,6 +105,15 @@ export function MemberEditModal({
     e.preventDefault();
     if (!name.trim() || !ign.trim() || !role.trim()) {
       setErrorMessage('Please fill in Name, IGN, and Role.');
+      return;
+    }
+    if (
+      photoBase64 &&
+      photoBase64 !== '/valkyr-logo.png' &&
+      (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photoBase64) ||
+        photoBase64.length > MAX_FIRESTORE_PHOTO_LENGTH)
+    ) {
+      setErrorMessage('Upload a JPG, PNG, or WebP photo so it can be saved as Base64 in Firestore.');
       return;
     }
 
@@ -186,10 +202,10 @@ export function MemberEditModal({
                   Member Photo (Base64 String)
                 </label>
                 <p className="text-[11px] text-zinc-400">
-                  Select a photo from your device. It will be compressed and saved as a Base64 string directly into your Firestore document.
+                  Select a photo from your device. It will be compressed and saved as Base64 in Firestore (no Firebase Storage required).
                 </p>
               </div>
-              {photoBase64 && (
+              {photoBase64.startsWith('data:') && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-emerald-400 border border-zinc-700">
                   Size: ~{imageSizeKb} KB
                 </span>
@@ -228,7 +244,7 @@ export function MemberEditModal({
                 <input
                   type="file"
                   ref={fileInputRef}
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handleImageFileChange}
                   className="hidden"
                 />
@@ -251,16 +267,6 @@ export function MemberEditModal({
                   >
                     Use Clan Logo
                   </button>
-                </div>
-
-                <div className="pt-1">
-                  <input
-                    type="text"
-                    value={photoBase64.startsWith('data:') ? 'Custom Base64 Image Encoded' : photoBase64}
-                    onChange={(e) => setPhotoBase64(e.target.value)}
-                    placeholder="Or paste image URL / Base64 data string..."
-                    className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-purple-500"
-                  />
                 </div>
               </div>
             </div>
