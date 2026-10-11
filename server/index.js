@@ -30,16 +30,31 @@ const DEFAULT_CLAN_SETTINGS = {
 
 const tursoUrl = process.env.TURSO_DATABASE_URL;
 const tursoAuthToken = process.env.TURSO_AUTH_TOKEN;
-if (!tursoUrl || !tursoAuthToken) {
-  throw new Error('Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the server environment.');
-}
-
 initializeApp({ projectId: PROJECT_ID });
 const firebaseAuth = getAuth();
-const database = createClient({ url: tursoUrl, authToken: tursoAuthToken });
+const database = tursoUrl && tursoAuthToken
+  ? createClient({ url: tursoUrl, authToken: tursoAuthToken })
+  : null;
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '25mb' }));
+
+let databaseStartupFailed = false;
+app.use('/api', (_request, response, next) => {
+  if (!database) {
+    response.status(503).json({
+      error: 'Turso is not configured. Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN to the Vercel project environment variables, then redeploy.',
+    });
+    return;
+  }
+  if (databaseStartupFailed) {
+    response.status(503).json({
+      error: 'Turso is unavailable. Check the Vercel function logs and Turso credentials, then redeploy.',
+    });
+    return;
+  }
+  next();
+});
 
 class ApiError extends Error {
   constructor(status, message) {
@@ -612,7 +627,14 @@ app.use((error, _request, response, _next) => {
   });
 });
 
-await initializeDatabase();
+if (database) {
+  try {
+    await initializeDatabase();
+  } catch (error) {
+    databaseStartupFailed = true;
+    console.error('Failed to initialize Turso schema:', error);
+  }
+}
 
 export default app;
 

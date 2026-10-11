@@ -24,10 +24,11 @@ service. Configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as server
 environment variables/secrets. Route the public app and `/api/*` through the
 same origin.
 
-For Vercel, the `api/[...path].js` function forwards `/api/*` requests to the
+For Vercel, the API functions under `api/` forward API requests to the
 Turso-backed Express API. Add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in the
 Vercel project's Environment Variables for Production (and Preview if needed),
-then redeploy. Keep these server-side variables unprefixed with `VITE_`.
+then redeploy. Both are required; without them, `/api/*` returns an explicit
+configuration error. Keep these server-side variables unprefixed with `VITE_`.
 
 Never expose the Turso auth token in client-side variables, source control, or
 build arguments. Rotate any Turso token shared outside a trusted secret store
