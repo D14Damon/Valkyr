@@ -1,10 +1,9 @@
 import { createClient } from '@libsql/client';
-import { getAuth } from 'firebase-admin/auth';
-import { initializeApp } from 'firebase-admin/app';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import dotenv from 'dotenv';
 import express from 'express';
 
@@ -13,6 +12,10 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT || 3010);
 const PROJECT_ID = 'valkyrdirectory';
+const FIREBASE_ISSUER = `https://securetoken.google.com/${PROJECT_ID}`;
+const FIREBASE_JWKS = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+);
 const BOOTSTRAPPED_ADMIN_EMAIL = 'kyledesillarico@gmail.com';
 const VALID_ROLES = new Set(['owner', 'roster_manager', 'moderator']);
 const VALID_STATUSES = new Set(['Active', 'Reserve', 'Alumni', 'Probationary']);
@@ -41,8 +44,6 @@ function readServerValue(name) {
 
 const tursoUrl = readServerValue('TURSO_DATABASE_URL');
 const tursoAuthToken = readServerValue('TURSO_AUTH_TOKEN');
-initializeApp({ projectId: PROJECT_ID });
-const firebaseAuth = getAuth();
 let database = null;
 let databaseStartupError = null;
 if (!tursoUrl || !tursoAuthToken) {
@@ -131,19 +132,25 @@ async function getRequestUser(request) {
   const match = authorization.match(/^Bearer (.+)$/i);
   if (!match) throw new ApiError(401, 'Sign in with an authorized clan account.');
   try {
-    return await firebaseAuth.verifyIdToken(match[1]);
-  } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
-    if ([
-      'auth/argument-error',
-      'auth/invalid-id-token',
-      'auth/id-token-expired',
-      'auth/id-token-revoked',
-      'auth/invalid-user-token',
-    ].includes(code)) {
+    const { payload } = await jwtVerify(match[1], FIREBASE_JWKS, {
+      algorithms: ['RS256'],
+      audience: PROJECT_ID,
+      issuer: FIREBASE_ISSUER,
+    });
+    if (typeof payload.sub !== 'string' || !payload.sub || payload.sub.length > 128) {
       throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
     }
-    console.error('Firebase token verification service failed:', error);
+    return { ...payload, uid: payload.sub };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
+    if (
+      typeof code === 'string'
+      && (code.startsWith('ERR_JWT') || code.startsWith('ERR_JWS') || code === 'ERR_JWKS_NO_MATCHING_KEY')
+    ) {
+      throw new ApiError(401, 'Your admin session is invalid or expired. Please sign in again.');
+    }
+    console.error('Firebase signing-key verification service failed:', error);
     throw new ApiError(503, 'The admin identity service is temporarily unavailable.');
   }
 }
