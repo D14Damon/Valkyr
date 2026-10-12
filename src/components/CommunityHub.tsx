@@ -50,14 +50,14 @@ interface Props {
   onUpdateSettings: (settings: ClanSettings) => void;
 }
 
-const panelClass = 'rounded-2xl border border-white/10 bg-zinc-950/70 p-5 shadow-xl backdrop-blur-sm';
+const panelClass = 'rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-950/90 to-zinc-900/50 p-5 shadow-xl shadow-black/20 backdrop-blur-sm';
 const inputClass = 'w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none';
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50';
 const communitySections = [
-  { id: 'activity', label: 'Clan activity' },
-  { id: 'recruitment', label: 'Recruitment' },
-  { id: 'trust', label: 'Verification & rules' },
-  { id: 'community', label: 'Community' },
+  { id: 'activity', label: 'Clan activity', description: 'Announcements, upcoming events and the latest roster updates.', icon: Bell },
+  { id: 'recruitment', label: 'Recruitment', description: 'Explore open roles and apply to join the roster.', icon: UserPlus },
+  { id: 'trust', label: 'Verification & rules', description: 'Verify a member, review clan guidelines or report impersonation.', icon: ShieldCheck },
+  { id: 'community', label: 'Community', description: 'Connect through official VALKYR channels and community resources.', icon: Users },
 ] as const;
 type CommunitySection = (typeof communitySections)[number]['id'];
 
@@ -283,9 +283,11 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
     { label: 'TikTok', href: safeExternalUrl(settings.tiktokUrl) },
     { label: 'YouTube', href: safeExternalUrl(settings.youtubeUrl) },
   ].filter((item): item is { label: string; href: string } => item.href !== null);
+  const activeSectionDetails = communitySections.find(({ id }) => id === activeSection) ?? communitySections[0];
+  const ActiveSectionIcon = activeSectionDetails.icon;
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-12 px-4 py-10 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
       {(errorMessage || successMessage) && (
         <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${errorMessage ? 'border-red-500/30 bg-red-950/40 text-red-200' : 'border-emerald-500/30 bg-emerald-950/40 text-emerald-200'}`}>
           {errorMessage || <Check className="h-4 w-4 shrink-0" />}
@@ -293,32 +295,45 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       )}
 
-      <nav aria-label="Community sections" className="flex flex-wrap gap-2">
+      <nav aria-label="Community sections" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-950/70 p-1.5 shadow-lg shadow-black/20">
         {communitySections.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             aria-pressed={activeSection === id}
             onClick={() => setActiveSection(id)}
-            className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
+            className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 ${
               activeSection === id
-                ? 'border-purple-400/50 bg-purple-500/15 text-white'
-                : 'border-white/10 bg-zinc-950/60 text-zinc-300 hover:border-purple-400/40 hover:text-white'
+                ? 'bg-purple-500/15 text-white shadow-inner shadow-purple-500/10'
+                : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
             }`}
           >
+            <span className={`h-1.5 w-1.5 rounded-full ${activeSection === id ? 'bg-purple-300' : 'bg-zinc-700'}`} aria-hidden="true" />
             {label}
           </button>
         ))}
       </nav>
 
-      <section id="activity" hidden={activeSection !== 'activity'} className="scroll-mt-8 space-y-6">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-purple-300">Stay in the loop</p>
-            <h2 className="mt-1 text-2xl font-black text-white sm:text-3xl">Clan activity</h2>
+      <header className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.07] bg-gradient-to-r from-white/[0.035] to-transparent px-4 py-4 sm:px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-purple-400/20 bg-purple-500/10 text-purple-200">
+            <ActiveSectionIcon className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-300">VALKYR community</p>
+            <h2 className="mt-0.5 text-xl font-black text-white sm:text-2xl">{activeSectionDetails.label}</h2>
+            <p className="mt-1 hidden text-sm text-zinc-400 sm:block">{activeSectionDetails.description}</p>
           </div>
-          <span className="hidden items-center gap-2 text-xs text-zinc-400 sm:flex"><Bell className="h-4 w-4 text-purple-300" /> Live updates</span>
         </div>
+        {activeSection === 'activity' && (
+          <span className="hidden shrink-0 items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/[0.07] px-3 py-1.5 text-xs font-medium text-emerald-200 sm:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+            Live updates
+          </span>
+        )}
+      </header>
+
+      <section id="activity" hidden={activeSection !== 'activity'} className="scroll-mt-8 space-y-5">
 
         {canModerate && (
           <div className="grid gap-4 lg:grid-cols-3">
@@ -350,9 +365,9 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid items-stretch gap-4 lg:grid-cols-3">
           <div className={`${panelClass} lg:col-span-1`}>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-zinc-200">Announcements</h3>
+            <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-300"><Megaphone className="h-4 w-4 text-purple-300" />Announcements</h3>
             <div className="space-y-4">
               {announcements.length ? announcements.slice(0, 5).map((item) => (
                 <article key={item.id} className="border-b border-white/[0.07] pb-4 last:border-0 last:pb-0">
@@ -363,12 +378,12 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-zinc-400">{item.body}</p>
                   <time className="mt-2 block text-[10px] text-zinc-600">{formatDate(item.createdAt)}</time>
                 </article>
-              )) : <p className="text-sm text-zinc-500">No announcements posted yet.</p>}
+              )) : <p className="rounded-xl border border-dashed border-white/10 bg-black/10 px-3 py-5 text-center text-sm text-zinc-500">No announcements posted yet.</p>}
             </div>
           </div>
 
           <div className={`${panelClass} lg:col-span-1`}>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-zinc-200">Events calendar</h3>
+            <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-300"><CalendarDays className="h-4 w-4 text-purple-300" />Events calendar</h3>
             <div className="space-y-3">
               {events.length ? events.filter((item) => new Date(item.startsAt).getTime() >= Date.now() - 86400000).slice(0, 6).map((item) => (
                 <article key={item.id} className="flex gap-3 border-b border-white/[0.07] pb-3 last:border-0">
@@ -382,12 +397,12 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
                   </div>
                   {canModerate && <button type="button" onClick={() => void runAdminAction(() => deleteContentRecord('events', item.id), 'Event removed.')} className="self-start text-xs text-red-300">Remove</button>}
                 </article>
-              )) : <p className="text-sm text-zinc-500">No upcoming events.</p>}
+              )) : <p className="rounded-xl border border-dashed border-white/10 bg-black/10 px-3 py-5 text-center text-sm text-zinc-500">No upcoming events.</p>}
             </div>
           </div>
 
           <div className={`${panelClass} lg:col-span-1`}>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-zinc-200">Tournament results</h3>
+            <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-300"><Trophy className="h-4 w-4 text-amber-300" />Tournament results</h3>
             <div className="space-y-3">
               {results.length ? results.slice(0, 6).map((item) => (
                 <article key={item.id} className="border-b border-white/[0.07] pb-3 last:border-0">
@@ -401,13 +416,16 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
                   {item.memberIds.length > 0 && <p className="mt-1 text-[11px] text-zinc-500">Players: {item.memberIds.map((id) => members.find((member) => member.id === id)?.ign || id).join(', ')}</p>}
                   {item.notes && <p className="mt-1 text-xs text-zinc-500">{item.notes}</p>}
                 </article>
-              )) : <p className="text-sm text-zinc-500">Tournament results will appear here.</p>}
+              )) : <p className="rounded-xl border border-dashed border-white/10 bg-black/10 px-3 py-5 text-center text-sm text-zinc-500">Tournament results will appear here.</p>}
             </div>
           </div>
         </div>
 
         <div className={panelClass}>
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-200"><History className="h-4 w-4 text-purple-300" /> Recent roster updates</h3>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-300"><History className="h-4 w-4 text-purple-300" />Recent roster updates</h3>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-600">Latest members</span>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {recentMembers.length ? recentMembers.map((member) => (
               <div key={member.id} className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
@@ -420,11 +438,19 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       </section>
 
-      <section id="recruitment" hidden={activeSection !== 'recruitment'} className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
+      <section id="recruitment" hidden={activeSection !== 'recruitment'} className="scroll-mt-8 grid items-start gap-4 lg:grid-cols-[1.4fr_0.8fr]">
         <div className={panelClass}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-purple-300">Join the roster</p>
-          <h2 className="mt-1 text-2xl font-black text-white">Recruitment</h2>
-          <p className="mt-2 text-sm text-zinc-400">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-300">Join the roster</p>
+              <h3 className="mt-1 text-xl font-black text-white">Application</h3>
+            </div>
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${settings.recruitmentOpen ? 'border-emerald-400/20 bg-emerald-500/[0.08] text-emerald-200' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${settings.recruitmentOpen ? 'bg-emerald-300' : 'bg-zinc-500'}`} />
+              {settings.recruitmentOpen ? 'Applications open' : 'Currently closed'}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-400">
             {settings.recruitmentOpen ? `Applications are open${settings.recruitingRoles?.length ? ` for ${settings.recruitingRoles.join(', ')}` : ''}.` : 'Recruitment is currently closed. Check back for future openings.'}
           </p>
           {settings.recruitmentOpen && (
@@ -452,11 +478,14 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
           )}
         </div>
 
-        <div className={panelClass}>
-          <h3 className="text-lg font-bold text-white">Open roles</h3>
+        <div className={`${panelClass} h-full`}>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-purple-300" />
+            <h3 className="text-sm font-bold text-white">Open roles</h3>
+          </div>
           {settings.recruitingRoles?.length ? (
-            <div className="mt-3 flex flex-wrap gap-2">{settings.recruitingRoles.map((role) => <span key={role} className="rounded-full border border-purple-400/20 bg-purple-500/10 px-3 py-1 text-xs text-purple-100">{role}</span>)}</div>
-          ) : <p className="mt-2 text-sm text-zinc-500">Contact the clan team about current openings.</p>}
+            <div className="mt-4 flex flex-wrap gap-2">{settings.recruitingRoles.map((role) => <span key={role} className="rounded-lg border border-purple-400/20 bg-purple-500/[0.08] px-3 py-2 text-xs font-medium text-purple-100">{role}</span>)}</div>
+          ) : <p className="mt-3 rounded-xl border border-dashed border-white/10 px-3 py-4 text-sm leading-relaxed text-zinc-500">Contact the clan team about current openings.</p>}
           {canManageRoster && (
             <details className="mt-6 border-t border-white/10 pt-4">
               <summary className="cursor-pointer text-sm font-semibold text-purple-200">Edit recruitment, verification, FAQ & rules</summary>
@@ -476,22 +505,31 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       </section>
 
-      <section id="trust" hidden={activeSection !== 'trust'} className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
+      <section id="trust" hidden={activeSection !== 'trust'} className="scroll-mt-8 grid items-stretch gap-4 lg:grid-cols-2">
         <div className={panelClass}>
-          <h2 className="flex items-center gap-2 text-xl font-black text-white"><ShieldCheck className="h-5 w-5 text-emerald-300" />Verify a VALKYR member</h2>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/[0.08] text-emerald-200"><ShieldCheck className="h-5 w-5" /></span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">Stay safe</p>
+              <h3 className="text-base font-bold text-white">Verify a VALKYR member</h3>
+            </div>
+          </div>
+          <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
             {settings.verificationInstructions || 'Find the player in the official roster and compare their IGN and verification code with the profile. If anything does not match, contact the clan through an official social link before trading or arranging a match.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <a href="#member-roster" className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200">Browse verified roster</a>
-            <a href="#report" className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-300">Report an impersonator</a>
+            <a href="#member-roster" className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">Browse verified roster</a>
+            <a href="#report" className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400">Report an impersonator</a>
           </div>
         </div>
         <div className={panelClass}>
-          <h2 className="text-xl font-black text-white">FAQ & clan rules</h2>
-          {settings.clanRules && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-300">{settings.clanRules.split('\n').filter(Boolean).map((rule, index) => <li key={`${index}-${rule}`}>{rule}</li>)}</ul>}
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-purple-300" />
+            <h3 className="text-sm font-bold text-white">FAQ & clan rules</h3>
+          </div>
+          {settings.clanRules && <ul className="mt-4 space-y-2 text-sm text-zinc-300">{settings.clanRules.split('\n').filter(Boolean).map((rule, index) => <li key={`${index}-${rule}`} className="flex gap-2 rounded-lg bg-black/15 px-3 py-2"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-300/70" />{rule}</li>)}</ul>}
           {settings.faq?.length ? (
-            <div className="mt-4 space-y-3">{settings.faq.map((item, index) => <details key={`${index}-${item.question}`} className="rounded-lg border border-white/[0.07] p-3"><summary className="cursor-pointer text-sm font-semibold text-zinc-200">{item.question}</summary><p className="mt-2 text-sm text-zinc-400">{item.answer}</p></details>)}</div>
+            <div className="mt-4 space-y-2">{settings.faq.map((item, index) => <details key={`${index}-${item.question}`} className="group rounded-xl border border-white/[0.08] bg-black/15 p-3 transition open:border-purple-400/20"><summary className="cursor-pointer list-none text-sm font-semibold text-zinc-200 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400">{item.question}<span className="float-right text-zinc-500 transition group-open:rotate-45">+</span></summary><p className="mt-3 border-t border-white/[0.07] pt-3 text-sm leading-relaxed text-zinc-400">{item.answer}</p></details>)}</div>
           ) : !settings.clanRules && <p className="mt-2 text-sm text-zinc-500">Clan rules and answers to common questions will be posted here.</p>}
         </div>
       </section>
@@ -508,10 +546,13 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
             status: 'open',
             createdAt: new Date().toISOString(),
           });
-        }} className={`${panelClass} grid gap-4 md:grid-cols-2`}>
+        }} className={`${panelClass} grid gap-5 md:grid-cols-[0.75fr_1.25fr]`}>
           <div>
-            <h2 className="flex items-center gap-2 text-xl font-black text-white"><Flag className="h-5 w-5 text-red-300" />Report impersonation</h2>
-            <p className="mt-2 max-w-lg text-sm text-zinc-400">Send suspected fake accounts to the moderation team. Reports are private to clan admins.</p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/[0.08] text-red-200"><Flag className="h-5 w-5" /></span>
+              <h3 className="text-base font-bold text-white">Report impersonation</h3>
+            </div>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-zinc-400">Send suspected fake accounts to the moderation team. Reports are private to clan admins.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <input name="reportedAccount" className={inputClass} placeholder="Account / IGN" required maxLength={150} />
@@ -576,11 +617,11 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
 
       <section id="community" hidden={activeSection !== 'community'} className={`${panelClass} flex flex-col justify-between gap-5 sm:flex-row sm:items-center`}>
         <div>
-          <h2 className="text-lg font-black text-white">Connect with VALKYR</h2>
-          <p className="mt-1 text-sm text-zinc-400">Follow official channels and join the community.</p>
+          <h3 className="text-lg font-black text-white">Connect with VALKYR</h3>
+          <p className="mt-1 max-w-md text-sm leading-relaxed text-zinc-400">Follow official channels and join the community.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {socials.map((item) => <a key={item.label} href={item.href!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-200 hover:border-purple-400/40"><ExternalLink className="h-3 w-3" />{item.label}</a>)}
+          {socials.map((item) => <a key={item.label} href={item.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-xs font-semibold text-zinc-200 transition hover:border-purple-400/40 hover:bg-purple-500/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"><ExternalLink className="h-3.5 w-3.5 text-purple-300" />{item.label}</a>)}
           {!socials.length && <p className="text-xs text-zinc-500">Official social links will appear here.</p>}
         </div>
       </section>
