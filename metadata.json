@@ -1,5 +1,5 @@
 {
-  "name": "VALKYR Clan Official Member Directory & Roster",
+  "name": "VALKYR - DIRECTORY",
   "description": "Official verified clan member directory and legitimacy authentication roster for VALKYR with real-time Firebase database integration.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
