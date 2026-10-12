@@ -53,6 +53,13 @@ interface Props {
 const panelClass = 'rounded-2xl border border-white/10 bg-zinc-950/70 p-5 shadow-xl backdrop-blur-sm';
 const inputClass = 'w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none';
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50';
+const communitySections = [
+  { id: 'activity', label: 'Clan activity' },
+  { id: 'recruitment', label: 'Recruitment' },
+  { id: 'trust', label: 'Verification & rules' },
+  { id: 'community', label: 'Community' },
+] as const;
+type CommunitySection = (typeof communitySections)[number]['id'];
 
 function formatDate(date: string): string {
   const parsed = new Date(date);
@@ -86,6 +93,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
   const [adminUid, setAdminUid] = useState('');
   const [adminAccountEmail, setAdminAccountEmail] = useState('');
   const [adminAccountRole, setAdminAccountRole] = useState<AdminRole>('roster_manager');
+  const [activeSection, setActiveSection] = useState<CommunitySection>('activity');
 
   useEffect(() => {
     const onError = (error: Error) => setErrorMessage(error.message);
@@ -286,19 +294,24 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
       )}
 
       <nav aria-label="Community sections" className="flex flex-wrap gap-2">
-        {[
-          ['activity', 'Clan activity'],
-          ['recruitment', 'Recruitment'],
-          ['trust', 'Verification & rules'],
-          ['community', 'Community'],
-        ].map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="rounded-full border border-white/10 bg-zinc-950/60 px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:border-purple-400/40 hover:text-white">
+        {communitySections.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={activeSection === id}
+            onClick={() => setActiveSection(id)}
+            className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${
+              activeSection === id
+                ? 'border-purple-400/50 bg-purple-500/15 text-white'
+                : 'border-white/10 bg-zinc-950/60 text-zinc-300 hover:border-purple-400/40 hover:text-white'
+            }`}
+          >
             {label}
-          </a>
+          </button>
         ))}
       </nav>
 
-      <section id="activity" className="scroll-mt-8 space-y-6">
+      <section id="activity" hidden={activeSection !== 'activity'} className="scroll-mt-8 space-y-6">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-purple-300">Stay in the loop</p>
@@ -407,7 +420,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       </section>
 
-      <section id="recruitment" className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
+      <section id="recruitment" hidden={activeSection !== 'recruitment'} className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
         <div className={panelClass}>
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-purple-300">Join the roster</p>
           <h2 className="mt-1 text-2xl font-black text-white">Recruitment</h2>
@@ -463,7 +476,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       </section>
 
-      <section id="trust" className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
+      <section id="trust" hidden={activeSection !== 'trust'} className="scroll-mt-8 grid gap-6 lg:grid-cols-2">
         <div className={panelClass}>
           <h2 className="flex items-center gap-2 text-xl font-black text-white"><ShieldCheck className="h-5 w-5 text-emerald-300" />Verify a VALKYR member</h2>
           <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
@@ -483,7 +496,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </div>
       </section>
 
-      <section id="report" className="scroll-mt-8">
+      <section id="report" hidden={activeSection !== 'trust'} className="scroll-mt-8">
         <form onSubmit={(event) => {
           const form = new FormData(event.currentTarget);
           void onSubmitPublic(event, 'impersonation_reports', {
@@ -512,7 +525,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
       </section>
 
       {canModerate && (
-        <section className={panelClass}>
+        <section hidden={activeSection !== 'community'} className={panelClass}>
           <h2 className="text-xl font-black text-white">Admin review queue</h2>
           <div className="mt-4 grid gap-5 lg:grid-cols-2">
             <div>
@@ -541,7 +554,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
       )}
 
       {isOwner && (
-        <section className={panelClass}>
+        <section hidden={activeSection !== 'community'} className={panelClass}>
           <h2 className="flex items-center gap-2 text-xl font-black text-white"><Users className="h-5 w-5 text-purple-300" />Admin roles</h2>
           <p className="mt-1 text-xs text-zinc-400">Assign a Firebase Authentication user by UID. Managers edit the roster; moderators manage announcements, events, applications, and reports.</p>
           <form onSubmit={handleAdminAssignment} className="mt-4 grid gap-3 sm:grid-cols-4">
@@ -561,7 +574,7 @@ export function CommunityHub({ members, settings, adminRole, adminEmail, onUpdat
         </section>
       )}
 
-      <section id="community" className={`${panelClass} flex flex-col justify-between gap-5 sm:flex-row sm:items-center`}>
+      <section id="community" hidden={activeSection !== 'community'} className={`${panelClass} flex flex-col justify-between gap-5 sm:flex-row sm:items-center`}>
         <div>
           <h2 className="text-lg font-black text-white">Connect with VALKYR</h2>
           <p className="mt-1 text-sm text-zinc-400">Follow official channels and join the community.</p>
